@@ -29,10 +29,7 @@ enum arith_op : char {
 };
 
 /* A single node in an expression tree.  "val_left" and "val_right"
- * point to the *value* of an expression, which can be used for lookups.
- * NB: floating-point numbers as keys are usually a bad idea,
- * but here it's fine, since 'val_right' and 'val_left' will be preserved
- * bit-precise. */
+ * point to the *value* of an expression, which can be used for lookups. */
 struct expr_node {
     arith_t val_left;
     arith_t val_right;
