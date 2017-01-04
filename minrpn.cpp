@@ -35,7 +35,6 @@ enum arith_op : char {
  * but here it's fine, since 'val_right' and 'val_left' will be preserved
  * bit-precise. */
 struct expr_node {
-    arith_t val;
     arith_t val_left;
     arith_t val_right;
     /* Count of terms.  This is used as a kind of cost function. */
@@ -75,16 +74,16 @@ class list_open_t {
 
 public:
     /* Insert the given node. */
-    void push(const expr_node& node) {
+    void push(arith_t val, const expr_node& node) {
         assert(node.n_terms >= 1);
         /* We will never want to push a node with n_terms smaller or equal to
          * the n_terms of a recently popped node. */
         assert(node.n_terms > min_nterms);
 
-        contains_val_t::iterator contains_val_it = contains_val.find(node.val);
+        contains_val_t::iterator contains_val_it = contains_val.find(val);
         if (contains_val_it == contains_val.end()) {
             /* Did not exist yet. */
-            contains_val.emplace(node.val, node);
+            contains_val.emplace(val, node);
         } else if (contains_val_it->second.n_terms > node.n_terms) {
             /* Did exist, and we found a strictly better solution. */
             contains_val_it->second = node;
@@ -99,19 +98,18 @@ public:
 
     /* Remove some node with the smallest 'n_terms'
      * and return the removed node. */
-    expr_node pop() {
+    void pop_into(arith_t& into_val, expr_node& into_node) {
         assert(size() != 0);
         if (min_nterms_cached.size() == 0) {
             recache();
         }
-        arith_t old_top_val = min_nterms_cached.top();
+        into_val = min_nterms_cached.top();
         min_nterms_cached.pop();
-        contains_val_t::iterator it = contains_val.find(old_top_val);
+        contains_val_t::iterator it = contains_val.find(into_val);
         assert(it != contains_val.end());
         /* Copy */
-        expr_node old_top = it->second;
+        into_node = it->second;
         contains_val.erase(it);
-        return old_top;
     }
 };
 
@@ -125,72 +123,71 @@ static list_closed_t list_closed;
 static list_open_t list_open;
 
 static void provide(arith_t d) {
-    expr_node node = {.n_terms = 1, .val = d, .val_left = d, .val_right = d,
+    expr_node node = {.n_terms = 1, .val_left = d, .val_right = d,
                       .op = OP_NONE};
-    list_open.push(node);
+    list_open.push(d, node);
 }
 
 static void print_rpn(arith_t val);
-static void discover(const expr_node& node) {
+static void discover(arith_t val, const expr_node& node) {
     /* Only add to open list if not already known in closed list.
      * (Avoid rediscovering easily-generated values like 0 or 1.) */
-    if (list_closed.count(node.val) != 0) {
+    if (list_closed.count(val) != 0) {
         return;
     }
-    arith_t abs_val = labs(node.val);
+    arith_t abs_val = labs(val);
     if (abs_val >= max_relevant) {
         return;
     }
-    if (node.val == goal) {
-        std::cout << "One way =";
+    if (val == goal) {
+        std::cout << "One way (" << node.n_terms << " terms) =";
         print_rpn(node.val_left);
         print_rpn(node.val_right);
         std::cout << " +" << std::endl;
     }
-    // PRINTME std::cout << "  Discovered " << node.val << " at depth " << node.n_terms << std::endl;
-    list_open.push(node);
+    // PRINTME std::cout << "  Discovered " << val << " at depth " << node.n_terms << std::endl;
+    list_open.push(val, node);
 }
 
-static void generate_against(const expr_node& a, const expr_node& b) {
+static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, const expr_node& b) {
     expr_node node;
     node.n_terms = a.n_terms + b.n_terms;
     assert(node.n_terms >= 2);
 
-    node.val_left = a.val;
-    node.val_right = b.val;
+    node.val_left = a_val;
+    node.val_right = b_val;
     /*
-    if (b.val != 0 && a.val % b.val == 0) {
-    node.val = a.val / b.val; node.op = OP_DIV;   discover(node);
+    if (b_val != 0 && a_val % b_val == 0) {
+        node.op = OP_DIV;   discover(a_val / b_val, node);
     }
     */
-    node.val = a.val - b.val; node.op = OP_MINUS; discover(node);
-    node.val = a.val * b.val; node.op = OP_MULT;  discover(node);
-    node.val = a.val + b.val; node.op = OP_PLUS;  discover(node);
+    node.op = OP_MINUS; discover(a_val - b_val, node);
+    node.op = OP_MULT ; discover(a_val * b_val, node);
+    node.op = OP_PLUS ; discover(a_val + b_val, node);
 
     /* Try to avoid needless duplicates */
-    if (b.val != a.val) {
-        node.val_left = b.val;
-        node.val_right = a.val;
+    if (b_val != a_val) {
+        node.val_left = b_val;
+        node.val_right = a_val;
         /*
-        if (a.val != 0 && b.val % a.val == 0) {
-        node.val = a.val / b.val; node.op = OP_DIV;   discover(node);
+        if (a_val != 0 && b_val % a_val == 0) {
+            node.op = OP_DIV;   discover(b_val / a_val, node);
         }
         */
-        node.val = b.val - a.val; node.op = OP_MINUS; discover(node);
+        node.op = OP_MINUS; discover(b_val - a_val, node);
     }
 }
 
 static void print_rpn(arith_t val) {
     const expr_node& node = list_closed.at(val);
-    assert(node.val == val);
     if (node.op == OP_NONE) {
-        std::cout << " " << node.val;
+        std::cout << " " << val;
     } else {
         print_rpn(node.val_left);
         print_rpn(node.val_right);
         /* Evil hack: '.op' is both an enum
          * *and* the representing character. */
-        std::cout << " " << (char)node.op;
+        std::cout << " " << static_cast<char>(node.op);
     }
 }
 
@@ -200,36 +197,44 @@ int main() {
     provide(420);
     /* Manual seeding (bad hack) */
     {
-        list_open.push(expr_node{.n_terms = 2, .val = 69*2, .val_left = 69*1, .val_right = 69, .op = OP_PLUS});
-        list_open.push(expr_node{.n_terms = 3, .val = 69*3, .val_left = 69*2, .val_right = 69, .op = OP_PLUS});
-        list_open.push(expr_node{.n_terms = 4, .val = 69*4, .val_left = 69*3, .val_right = 69, .op = OP_PLUS});
+        list_open.push(69*2, expr_node{.n_terms = 2, .val_left = 69*1, .val_right = 69, .op = OP_PLUS});
+        list_open.push(69*3, expr_node{.n_terms = 3, .val_left = 69*2, .val_right = 69, .op = OP_PLUS});
+        list_open.push(69*4, expr_node{.n_terms = 4, .val_left = 69*3, .val_right = 69, .op = OP_PLUS});
+        list_open.push(69*5, expr_node{.n_terms = 5, .val_left = 69*4, .val_right = 69, .op = OP_PLUS});
 
-        list_open.push(expr_node{.n_terms = 2, .val =    1, .val_left = 69*1, .val_right = 69, .op = OP_DIV});
-        list_open.push(expr_node{.n_terms = 3, .val =    2, .val_left = 69*2, .val_right = 69, .op = OP_DIV});
-        list_open.push(expr_node{.n_terms = 4, .val =    3, .val_left = 69*3, .val_right = 69, .op = OP_DIV});
-        list_open.push(expr_node{.n_terms = 5, .val =    4, .val_left = 69*4, .val_right = 69, .op = OP_DIV});
+        list_open.push(1, expr_node{.n_terms = 2, .val_left = 69*1, .val_right = 69, .op = OP_DIV});
+        list_open.push(2, expr_node{.n_terms = 3, .val_left = 69*2, .val_right = 69, .op = OP_DIV});
+        list_open.push(3, expr_node{.n_terms = 4, .val_left = 69*3, .val_right = 69, .op = OP_DIV});
+        list_open.push(4, expr_node{.n_terms = 5, .val_left = 69*4, .val_right = 69, .op = OP_DIV});
+        list_open.push(5, expr_node{.n_terms = 6, .val_left = 69*5, .val_right = 69, .op = OP_DIV});
+        list_open.push(6, expr_node{.n_terms = 7, .val_left = 69*6, .val_right = 69, .op = OP_DIV});
     }
 
     /* Did you provide at least one value? */
     assert(list_open.size() > 0);
 
     /* Search */
+    size_t counter = 0, next_print = 100;
     while (true) {
-        /* Copy */
-        expr_node node = list_open.pop();
-        std::cout << "Expanding " << node.val << " at depth " << node.n_terms << ", " << list_open.size_dead() << " dead nodes, " << list_open.size() << " open, " << list_closed.size() << " closed." << std::endl;
+        arith_t val;
+        expr_node node;
+        list_open.pop_into(val, node);
+        if (++counter == next_print) {
+            std::cout << "Expanding " << val << " at depth " << node.n_terms << ", " << list_open.size() << " open, " << list_closed.size() << " closed." << std::endl;
+            next_print *= 2;
+        }
 
         /* First add it to the closed list, so it can be
          * "generated against" itself: */
-        list_closed.emplace(node.val, node);
+        list_closed.emplace(val, node);
 
-        if (node.val == goal) {
+        if (val == goal) {
             /* Whee, we found it! */
             break;
         }
 
         for (const list_closed_t::value_type& peer_kv : list_closed) {
-            generate_against(node, peer_kv.second);
+            generate_against(val, node, peer_kv.first, peer_kv.second);
         }
     }
     std::cout << "Done!  Printing ..." << std::endl;
