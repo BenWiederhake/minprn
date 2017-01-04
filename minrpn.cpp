@@ -57,8 +57,8 @@ class list_open_t {
     min_nterms_t min_nterms_cached;
     size_t min_nterms = 0;
     /* Keeps track of the actual elements. */
-    typedef std::unordered_map<arith_t, expr_node> contains_val_t;
-    contains_val_t contains_val;
+    typedef std::unordered_map<arith_t, expr_node> backing_t;
+    backing_t backing;
 
     void step_recache() {
         min_nterms += 1;
@@ -67,11 +67,11 @@ class list_open_t {
 
         /* Need to manually manage iterator,
          * as the erasing would invalidate it. */
-        contains_val_t::iterator it = contains_val.begin();
-        while (it != contains_val.end()) {
+        backing_t::iterator it = backing.begin();
+        while (it != backing.end()) {
             /* Manage iterator */
-            contains_val_t::iterator old_it = it++;
-            const contains_val_t::value_type& entry = *old_it;
+            backing_t::iterator old_it = it++;
+            const backing_t::value_type& entry = *old_it;
 
             /* Actual logic */
             assert(entry.second.n_terms >= min_nterms);
@@ -80,13 +80,13 @@ class list_open_t {
             } else if (entry.second.n_terms >= goal_seen_n_terms
                     && entry.first != goal) {
                 /* This invalidates the reference! */
-                contains_val.erase(old_it);
+                backing.erase(old_it);
             }
         }
     }
 
     void recache() {
-        assert(contains_val.size() > 0);
+        assert(backing.size() > 0);
         assert(min_nterms_cached.size() == 0);
         do {
             step_recache();
@@ -101,13 +101,13 @@ public:
          * the n_terms of a recently popped node. */
         assert(node.n_terms > min_nterms);
 
-        contains_val_t::iterator contains_val_it = contains_val.find(val);
-        if (contains_val_it == contains_val.end()) {
+        backing_t::iterator backing_it = backing.find(val);
+        if (backing_it == backing.end()) {
             /* Did not exist yet. */
-            contains_val.emplace(val, node);
-        } else if (contains_val_it->second.n_terms > node.n_terms) {
+            backing.emplace(val, node);
+        } else if (backing_it->second.n_terms > node.n_terms) {
             /* Did exist, and we found a strictly better solution. */
-            contains_val_it->second = node;
+            backing_it->second = node;
         }
         /* Otherwise, the new discovery doesn't add anything interesting,
          * so we can just ignore it. */
@@ -118,7 +118,7 @@ public:
     }
 
     size_t size() const {
-        return contains_val.size();
+        return backing.size();
     }
 
     /* Remove some node with the smallest 'n_terms'
@@ -130,15 +130,15 @@ public:
         }
         into_val = min_nterms_cached.top();
         min_nterms_cached.pop();
-        contains_val_t::iterator it = contains_val.find(into_val);
-        assert(it != contains_val.end());
+        backing_t::iterator it = backing.find(into_val);
+        assert(it != backing.end());
         /* Copy */
         into_node = it->second;
-        contains_val.erase(it);
+        backing.erase(it);
     }
 
     const expr_node& at(arith_t val) {
-        return contains_val.at(val);
+        return backing.at(val);
     }
 };
 
@@ -151,13 +151,35 @@ public:
 static list_closed_t list_closed;
 static list_open_t list_open;
 
+static const expr_node& lookup_best_known(arith_t val) {
+    list_closed_t::const_iterator it = list_closed.find(val);
+    if (it != list_closed.end()) {
+        return it->second;
+    }
+    return list_open.at(val);
+}
+
+static void print_expr(arith_t val) {
+    const expr_node& node = lookup_best_known(val);
+    if (node.op == OP_NONE) {
+        std::cout << val;
+    } else {
+        std::cout << "(";
+        print_expr(node.val_left);
+        /* Evil hack: '.op' is both an enum
+         * *and* the representing character. */
+        std::cout << static_cast<char>(node.op);
+        print_expr(node.val_right);
+        std::cout << ")";
+    }
+}
+
 static void provide(arith_t d) {
     expr_node node = {.n_terms = 1, .val_left = d, .val_right = d,
                       .op = OP_NONE};
     list_open.push(d, node);
 }
 
-static void print_rpn(arith_t val);
 static void discover(arith_t val, const expr_node& node) {
     /* Only add to open list if not already known in closed list.
      * (Avoid rediscovering easily-generated values like 0 or 1.) */
@@ -177,7 +199,7 @@ static void discover(arith_t val, const expr_node& node) {
     if (val == goal) {
         goal_seen_n_terms = node.n_terms;
         std::cout << "One way (" << node.n_terms << " terms) = ";
-        print_rpn(goal);
+        print_expr(goal);
         std::cout << std::endl;
     }
 }
@@ -204,29 +226,6 @@ static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, c
             node.op = OP_DIV;   discover(b_val / a_val, node);
         }
         node.op = OP_MINUS; discover(b_val - a_val, node);
-    }
-}
-
-static const expr_node& lookup_best_known(arith_t val) {
-    list_closed_t::const_iterator it = list_closed.find(val);
-    if (it != list_closed.end()) {
-        return it->second;
-    }
-    return list_open.at(val);
-}
-
-static void print_rpn(arith_t val) {
-    const expr_node& node = lookup_best_known(val);
-    if (node.op == OP_NONE) {
-        std::cout << val;
-    } else {
-        std::cout << "(";
-        print_rpn(node.val_left);
-        /* Evil hack: '.op' is both an enum
-         * *and* the representing character. */
-        std::cout << static_cast<char>(node.op);
-        print_rpn(node.val_right);
-        std::cout << ")";
     }
 }
 
@@ -273,7 +272,7 @@ int main() {
 
     /* Printing */
     std::cout << goal << " = ";
-    print_rpn(goal);
+    print_expr(goal);
     std::cout << std::endl;
 
     return 0;
