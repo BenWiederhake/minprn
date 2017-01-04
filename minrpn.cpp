@@ -19,9 +19,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-/* Some very light configuration / pruning */
+/* Some configuration / pruning */
 typedef long arith_t;
-static const arith_t max_relevant = 10 * 1000 * 1000;
+static const arith_t max_relevant = 420 * 3000;
+static const arith_t goal = 2017;
 
 enum arith_op : char {
     /* Enums which store the character used to represent them. */
@@ -138,6 +139,7 @@ static void provide(arith_t d) {
     list_open.push(node);
 }
 
+static void print_rpn(arith_t val);
 static void discover(const expr_node& node) {
     /* Only add to open list if not already known in closed list.
      * (Avoid rediscovering easily-generated values like 0 or 1.) */
@@ -147,6 +149,12 @@ static void discover(const expr_node& node) {
     arith_t abs_val = labs(node.val);
     if (abs_val >= max_relevant) {
         return;
+    }
+    if (node.val == goal) {
+        std::cout << "One way = ";
+        print_rpn(node.val_left);
+        print_rpn(node.val_right);
+        std::cout << " +" << std::endl;
     }
     // PRINTME std::cout << "  Discovered " << node.val << " at depth " << node.n_terms << std::endl;
     list_open.push(node);
@@ -159,9 +167,11 @@ static void generate_against(const expr_node& a, const expr_node& b) {
 
     node.val_left = a.val;
     node.val_right = b.val;
+    /*
     if (b.val != 0 && a.val % b.val == 0) {
     node.val = a.val / b.val; node.op = OP_DIV;   discover(node);
     }
+    */
     node.val = a.val - b.val; node.op = OP_MINUS; discover(node);
     node.val = a.val * b.val; node.op = OP_MULT;  discover(node);
     node.val = a.val + b.val; node.op = OP_PLUS;  discover(node);
@@ -170,9 +180,11 @@ static void generate_against(const expr_node& a, const expr_node& b) {
     if (b.val != a.val) {
         node.val_left = b.val;
         node.val_right = a.val;
+        /*
         if (a.val != 0 && b.val % a.val == 0) {
-        node.val = b.val / a.val; node.op = OP_DIV;   discover(node);
+        node.val = a.val / b.val; node.op = OP_DIV;   discover(node);
         }
+        */
         node.val = b.val - a.val; node.op = OP_MINUS; discover(node);
     }
 }
@@ -193,9 +205,19 @@ static void print_rpn(arith_t val) {
 
 int main() {
     /* Tweak this if you feel like it. */
-    arith_t goal = 2017;
     provide(69);
     provide(420);
+    /* Manual seeding (bad hack) */
+    {
+        list_open.push(expr_node{.n_terms = 2, .val = 69*2, .val_left = 69*1, .val_right = 69, .op = OP_PLUS});
+        list_open.push(expr_node{.n_terms = 3, .val = 69*3, .val_left = 69*2, .val_right = 69, .op = OP_PLUS});
+        list_open.push(expr_node{.n_terms = 4, .val = 69*4, .val_left = 69*3, .val_right = 69, .op = OP_PLUS});
+
+        list_open.push(expr_node{.n_terms = 2, .val =    1, .val_left = 69*1, .val_right = 69, .op = OP_DIV});
+        list_open.push(expr_node{.n_terms = 3, .val =    2, .val_left = 69*2, .val_right = 69, .op = OP_DIV});
+        list_open.push(expr_node{.n_terms = 4, .val =    3, .val_left = 69*3, .val_right = 69, .op = OP_DIV});
+        list_open.push(expr_node{.n_terms = 5, .val =    4, .val_left = 69*4, .val_right = 69, .op = OP_DIV});
+    }
 
     /* Did you provide at least one value? */
     assert(list_open.size() > 0);
