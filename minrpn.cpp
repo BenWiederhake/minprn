@@ -41,6 +41,10 @@ struct expr_node {
     arith_op op;
 };
 
+/* Minimum shortest-known expression for the goal.
+ * Initialized by a very rough upper bound */
+static size_t goal_seen_n_terms = goal + 10;
+
 /* Need value->struct lookup. */
 typedef std::unordered_map<arith_t, expr_node> list_closed_t;
 
@@ -62,10 +66,34 @@ class list_open_t {
         do {
             min_nterms += 1;
             std::cout << "Now looking at level " << min_nterms << std::endl;
-            for (const contains_val_t::value_type& entry : contains_val) {
+            assert(min_nterms <= goal_seen_n_terms);
+
+            /* Speed up the last round artificially. */
+            if (min_nterms == goal_seen_n_terms) {
+                /* We know that the goal is in there, and we know that the
+                 * goal can't conceivably be reached any faster by now.
+                 * So just pretend that the goal is the only available item. */
+                min_nterms_cached.push(goal);
+                /* Note that after popping the goal, this data structure
+                 * is garbage! */
+                break;
+            }
+            
+            /* Need to manually manage iterator, as the erasure would invalidate it. */
+            contains_val_t::iterator it = contains_val.begin();
+            while (it != contains_val.end()) {
+                /* Manage iterator */
+                contains_val_t::iterator old_it = it++;
+                const contains_val_t::value_type& entry = *old_it;
+
+                /* Actual logic */
                 assert(entry.second.n_terms >= min_nterms);
                 if (entry.second.n_terms == min_nterms) {
                     min_nterms_cached.push(entry.first);
+                } else if (entry.second.n_terms >= goal_seen_n_terms
+                        && entry.first != goal) {
+                    /* This invalidates the reference! */
+                    contains_val.erase(old_it);
                 }
             }
         } while (min_nterms_cached.size() == 0);
@@ -126,9 +154,6 @@ static void provide(arith_t d) {
                       .op = OP_NONE};
     list_open.push(d, node);
 }
-
-/* Very rough upper bound */
-static size_t goal_seen_n_terms = goal + 10;
 
 static void print_rpn(arith_t val);
 static void discover(arith_t val, const expr_node& node) {
