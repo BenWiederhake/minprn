@@ -17,7 +17,6 @@
 #include <map>
 #include <stack>
 #include <unordered_map>
-#include <unordered_set>
 
 /* Some configuration / pruning */
 typedef long arith_t;
