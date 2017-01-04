@@ -65,17 +65,6 @@ class list_open_t {
         std::cout << "Now looking at level " << min_nterms << std::endl;
         assert(min_nterms <= goal_seen_n_terms);
 
-        /* Speed up the last round artificially. */
-        if (min_nterms == goal_seen_n_terms) {
-            /* We know that the goal is in there, and we know that the
-             * goal can't conceivably be reached any faster by now.
-             * So just pretend that the goal is the only available item. */
-            min_nterms_cached.push(goal);
-            /* Note that after popping the goal, this data structure
-             * is garbage! */
-            break;
-        }
-
         /* Need to manually manage iterator,
          * as the erasing would invalidate it. */
         contains_val_t::iterator it = contains_val.begin();
@@ -237,9 +226,15 @@ int main() {
 
     /* Search */
     size_t counter = 0, next_print = 100;
-    while (true) {
+    expr_node node; /* Actually 'while'-scoped. */
+    do {
+        if (list_open.size() == 0) {
+            std::cout << "Goal can't be reached,"
+                " or one of the assumptions was violated." << std::endl;
+            return 1;
+        }
+
         arith_t val;
-        expr_node node;
         list_open.pop_into(val, node);
         if (++counter == next_print) {
             std::cout << "Expanding " << val << " at depth " << node.n_terms
@@ -252,15 +247,13 @@ int main() {
          * "generated against" itself: */
         list_closed.emplace(val, node);
 
-        if (val == goal) {
-            /* Whee, we found it! */
-            break;
-        }
+        assert(val != goal);
 
         for (const list_closed_t::value_type& peer_kv : list_closed) {
             generate_against(val, node, peer_kv.first, peer_kv.second);
         }
-    }
+        /* Only loop as long as there's at least one more term that could be shaved off. */
+    } while (goal_seen_n_terms > node.n_terms + 1);
     std::cout << "Done!  Printing ..." << std::endl;
 
     /* Printing */
