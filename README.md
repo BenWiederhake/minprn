@@ -119,10 +119,25 @@ The "Optimizations" section also details the assumptions baked into the code.
 
 ### Actual optimizations
 
-Text goes here.  Sorry.
-Look at the git history.
+- Probably the most effective optimization:
+  If there's already some expression known for the goal, and it uses `n` terms,
+  then any other expression with `n-1` or more terms is irrelevant (as it can't
+  possibly yield a shorter expression).
+  This pruning is applied in three places:
+  `list_open_t::step_recache`, `discover`, and the termination condition in `main`.
+- Reclaim memory from the previous optimization: because why not.
+- Not storing the value of the node within it: saved space means more data
+  locality means less page faults means faster execution.
+- Known-equivalent expressions won't even be generated: `a+b==b+a` as anyone
+  knows (see "Hidden assumptions": all intermediate results are integers),
+  so generating both expressions would be pointless.
 
-### Pruning and assumptions
+Currently, the program seems to use very little memory but a lot of processing power.
+This is mostly because in order to mark `k` nodes as closed,
+`k^2` possible combinations have to be tested.
+Any kind of pruning here would greatly cut down this amount.
+
+### Hidden assumptions
 
 - "All intermediate values are integers."  In other words:
   "Calculating with fractional values does not allow for a shorter representation."
@@ -139,3 +154,27 @@ Look at the git history.
 - "All operators are equal."  This is by definition true as I defined the cost
   function to be the amount of terms (which is the amount of operators plus 1).
   [Of course that's subjective.](https://www.reddit.com/r/ProgrammerHumor/comments/5lp43c/2017_will_be_lit_random_postfix_equations/)
+
+These assumptions allow to greatly reduce the search space, but also possibly
+cut away legitimate expressions that just happen to "look weird" in this interpretation.
+Obviously, I can't claim anymore that this find *the single shortest* expression there is;
+but at least it finds "pretty short" expressions.  At least for the given examples I'm
+positive that these are exhaustive.
+
+## How to contribute
+
+Uhh.
+
+You might want to tweak the `open_list_t` implementation to be faster/better/stronger;
+you might want to run it again with less strict assumptions; you might want to try
+`typedef double arith_t` (which is possible, just somewhat fragile).
+
+Of course there's also the possibility to change the set of allowed values
+(you can easily allow only one value, or many), and even implementing your
+own (binary) function (e.g., modulo, exponentiation, rounding division)
+should be doable.
+
+Maybe you need this as a library?  The "global state" of the algorithm is marked
+as such, so one could do that, too.  (I just don't see a point in it.)
+
+Have fun, and shoot me an issue/PR if you feel like it. :)
