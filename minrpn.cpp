@@ -20,8 +20,9 @@
 #include <unordered_set>
 
 /* Some very light configuration / pruning */
-static const double max_relevant = 1e+7;
-static const double min_relevant = 1e-7;
+typedef double arith_t;
+static const arith_t max_relevant = 10 * 1000 * 1000;
+static const arith_t min_relevant = 1e-7;
 
 enum arith_op : char {
     /* Enums which store the character used to represent them. */
@@ -34,16 +35,16 @@ enum arith_op : char {
  * but here it's fine, since 'val_right' and 'val_left' will be preserved
  * bit-precise. */
 struct expr_node {
-    double val;
-    double val_left;
-    double val_right;
+    arith_t val;
+    arith_t val_left;
+    arith_t val_right;
     /* Count of terms.  This is used as a kind of cost function. */
     size_t n_terms;
     arith_op op;
 };
 
 /* Need value->struct lookup. */
-typedef std::unordered_map<double, expr_node> list_closed_t;
+typedef std::unordered_map<arith_t, expr_node> list_closed_t;
 
 /* Need value->n_terms insertion/update; min(n_terms) pop; min(n_terms) update.
  * That's an unusual set of requirements, so implement my own class.
@@ -51,10 +52,10 @@ typedef std::unordered_map<double, expr_node> list_closed_t;
 class list_open_t {
     /* For "min(n_terms) pop".
      * May contain outdated nodes; see 'contains_val'. */
-    typedef std::multimap<size_t, double> by_nterms_t;
+    typedef std::multimap<size_t, arith_t> by_nterms_t;
     by_nterms_t by_nterms;
     /* Keeps track of which elements actually "exist". */
-    typedef std::unordered_map<double, expr_node> contains_val_t;
+    typedef std::unordered_map<arith_t, expr_node> contains_val_t;
     contains_val_t contains_val;
 
 public:
@@ -132,7 +133,7 @@ public:
 static list_closed_t list_closed;
 static list_open_t list_open;
 
-static void provide(double d) {
+static void provide(arith_t d) {
     expr_node node = {.n_terms = 1, .val = d, .val_left = d, .val_right = d,
                       .op = OP_NONE};
     list_open.push(node);
@@ -144,7 +145,7 @@ static void discover(const expr_node& node) {
     if (list_closed.count(node.val) != 0) {
         return;
     }
-    double abs_val = fabs(node.val);
+    arith_t abs_val = fabs(node.val);
     if (abs_val <= min_relevant || abs_val >= max_relevant) {
         return;
     }
@@ -173,7 +174,7 @@ static void generate_against(const expr_node& a, const expr_node& b) {
     }
 }
 
-static void print_rpn(double val) {
+static void print_rpn(arith_t val) {
     const expr_node& node = list_closed.at(val);
     assert(node.val == val);
     if (node.op == OP_NONE) {
@@ -189,7 +190,7 @@ static void print_rpn(double val) {
 
 int main() {
     /* Tweak this if you feel like it. */
-    double goal = 2017;
+    arith_t goal = 2017;
     provide(69);
     provide(420);
 
