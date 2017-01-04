@@ -13,7 +13,7 @@ So I wondered: is there a shorter way?
 Yes, there is!
 ![alt tag](res/2017IsActuallyGonnaBeLit.png)
 
-And here's a [WolframAlpha query/proof](https://www.wolframalpha.com/input/?i=\frac{69}{69}+-+\frac{%28420%2B420%29*%28420%2B420%29}{69-420%2B\frac{69}{69}}).
+And here's a [WolframAlpha query/proof](https://www.wolframalpha.com/input/?i=%5Cfrac{69}{69}+-+%5Cfrac{%28420%2B420%29*%28420%2B420%29}{69-420%2B%5Cfrac{69}{69}}).
 
 Only 10 terms and 9 operators, whoa! (If you think there are 8 in the picture, then you forgot multiplication.)
 
