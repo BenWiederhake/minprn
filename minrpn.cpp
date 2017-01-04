@@ -139,11 +139,12 @@ static void discover(arith_t val, const expr_node& node) {
     if (abs_val >= max_relevant) {
         return;
     }
-    if (val == goal) {
-        std::cout << "One way (" << node.n_terms << " terms) =";
+    if (val == goal && node.n_terms < 14) {
+        std::cout << "One way (" << node.n_terms << " terms) = ";
         print_rpn(node.val_left);
+        std::cout << static_cast<char>(node.op);
         print_rpn(node.val_right);
-        std::cout << " +" << std::endl;
+        std::cout << std::endl;
     }
     // PRINTME std::cout << "  Discovered " << val << " at depth " << node.n_terms << std::endl;
     list_open.push(val, node);
@@ -156,11 +157,9 @@ static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, c
 
     node.val_left = a_val;
     node.val_right = b_val;
-    /*
     if (b_val != 0 && a_val % b_val == 0) {
         node.op = OP_DIV;   discover(a_val / b_val, node);
     }
-    */
     node.op = OP_MINUS; discover(a_val - b_val, node);
     node.op = OP_MULT ; discover(a_val * b_val, node);
     node.op = OP_PLUS ; discover(a_val + b_val, node);
@@ -169,11 +168,9 @@ static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, c
     if (b_val != a_val) {
         node.val_left = b_val;
         node.val_right = a_val;
-        /*
         if (a_val != 0 && b_val % a_val == 0) {
             node.op = OP_DIV;   discover(b_val / a_val, node);
         }
-        */
         node.op = OP_MINUS; discover(b_val - a_val, node);
     }
 }
@@ -181,13 +178,15 @@ static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, c
 static void print_rpn(arith_t val) {
     const expr_node& node = list_closed.at(val);
     if (node.op == OP_NONE) {
-        std::cout << " " << val;
+        std::cout << val;
     } else {
+        std::cout << "(";
         print_rpn(node.val_left);
-        print_rpn(node.val_right);
         /* Evil hack: '.op' is both an enum
          * *and* the representing character. */
-        std::cout << " " << static_cast<char>(node.op);
+        std::cout << static_cast<char>(node.op);
+        print_rpn(node.val_right);
+        std::cout << ")";
     }
 }
 
@@ -195,20 +194,6 @@ int main() {
     /* Tweak this if you feel like it. */
     provide(69);
     provide(420);
-    /* Manual seeding (bad hack) */
-    {
-        list_open.push(69*2, expr_node{.n_terms = 2, .val_left = 69*1, .val_right = 69, .op = OP_PLUS});
-        list_open.push(69*3, expr_node{.n_terms = 3, .val_left = 69*2, .val_right = 69, .op = OP_PLUS});
-        list_open.push(69*4, expr_node{.n_terms = 4, .val_left = 69*3, .val_right = 69, .op = OP_PLUS});
-        list_open.push(69*5, expr_node{.n_terms = 5, .val_left = 69*4, .val_right = 69, .op = OP_PLUS});
-
-        list_open.push(1, expr_node{.n_terms = 2, .val_left = 69*1, .val_right = 69, .op = OP_DIV});
-        list_open.push(2, expr_node{.n_terms = 3, .val_left = 69*2, .val_right = 69, .op = OP_DIV});
-        list_open.push(3, expr_node{.n_terms = 4, .val_left = 69*3, .val_right = 69, .op = OP_DIV});
-        list_open.push(4, expr_node{.n_terms = 5, .val_left = 69*4, .val_right = 69, .op = OP_DIV});
-        list_open.push(5, expr_node{.n_terms = 6, .val_left = 69*5, .val_right = 69, .op = OP_DIV});
-        list_open.push(6, expr_node{.n_terms = 7, .val_left = 69*6, .val_right = 69, .op = OP_DIV});
-    }
 
     /* Did you provide at least one value? */
     assert(list_open.size() > 0);
@@ -240,7 +225,7 @@ int main() {
     std::cout << "Done!  Printing ..." << std::endl;
 
     /* Printing */
-    std::cout << goal << " =";
+    std::cout << goal << " = ";
     print_rpn(goal);
     std::cout << std::endl;
 
