@@ -50,31 +50,43 @@ typedef std::unordered_map<arith_t, expr_node> list_closed_t;
  * That's an unusual set of requirements, so implement my own class.
  * Note that there's many ways to implement this. */
 class list_open_t {
-    /* For "min(n_terms) pop".
-     * May contain outdated nodes; see 'contains_val'. */
-    typedef std::multimap<size_t, arith_t> by_nterms_t;
-    by_nterms_t by_nterms;
-    /* Keeps track of which elements actually "exist". */
+    /* All elements with "min(n_terms)". */
+    typedef std::stack<arith_t> min_nterms_t;
+    min_nterms_t min_nterms_cached;
+    size_t min_nterms = 0;
+    /* Keeps track of the actual elements. */
     typedef std::unordered_map<arith_t, expr_node> contains_val_t;
     contains_val_t contains_val;
+
+    void recache() {
+        assert(contains_val.size() > 0);
+        assert(min_nterms_cached.size() == 0);
+        do {
+            min_nterms += 1;
+            std::cout << "Now looking at level " << min_nterms << std::endl;
+            for (const contains_val_t::value_type& entry : contains_val) {
+                assert(entry.second.n_terms >= min_nterms);
+                if (entry.second.n_terms == min_nterms) {
+                    min_nterms_cached.push(entry.first);
+                }
+            }
+        } while (min_nterms_cached.size() == 0);
+    }
 
 public:
     /* Insert the given node. */
     void push(const expr_node& node) {
         assert(node.n_terms >= 1);
-        /* If the given node results in a value that hasn't been seen before,
-         * this is perfectly fine.  In the other case, it is too difficult to
-         * properly update the entry in 'by_nterms', so just treat it as new.
-         * 'pop()' will have to deal with the cleanup. */
+        /* We will never want to push a node with n_terms smaller or equal to
+         * the n_terms of a recently popped node. */
+        assert(node.n_terms > min_nterms);
+
         contains_val_t::iterator contains_val_it = contains_val.find(node.val);
         if (contains_val_it == contains_val.end()) {
             /* Did not exist yet. */
-            by_nterms.emplace(node.n_terms, node.val);
             contains_val.emplace(node.val, node);
         } else if (contains_val_it->second.n_terms > node.n_terms) {
-            /* Did exist, and we found a strictly better solution.
-             * Note that we leave garbage behind in 'by_nterms'. */
-            by_nterms.emplace(node.n_terms, node.val);
+            /* Did exist, and we found a strictly better solution. */
             contains_val_it->second = node;
         }
         /* Otherwise, the new discovery doesn't add anything interesting,
@@ -85,42 +97,21 @@ public:
         return contains_val.size();
     }
 
-    size_t size_dead() const {
-        assert(by_nterms.size() >= contains_val.size());
-        return by_nterms.size() - contains_val.size();
-    }
-
-    /* Remove some node with the smallest 'n_terms' and return the removed node.
-     * It is possible, but not guaranteed, that a push-after-pop of the same
-     * value appears to be overridden by an older push.
-     * Example: push(1), push(2), pop(1), push(3), pop(2)
-     * (One might expect that the last 'pop' can only possibly "see" the
-     *  'n_terms=3' node.)
-     * This unintuitive behavior is okay because this access pattern
-     * won't happen in this program. */
+    /* Remove some node with the smallest 'n_terms'
+     * and return the removed node. */
     expr_node pop() {
         assert(size() != 0);
-        while (true) {
-            assert(contains_val.size() != 0);
-            assert(by_nterms.size() >= contains_val.size());
-            
-            by_nterms_t::iterator by_nterms_it = by_nterms.begin();
-            contains_val_t::iterator contains_val_it =
-                contains_val.find(by_nterms_it->second);
-            if (contains_val_it == contains_val.end()) {
-                /* Whoops, this shouldn't exist anymore. */
-                std::cout << "Skipped dead item " << by_nterms_it->second << " at depth " << by_nterms_it->first << std::endl;
-                by_nterms.erase(by_nterms_it);
-            } else {
-                assert(by_nterms_it->first == contains_val_it->second.n_terms);
-                /* Great!  Return this. */
-                expr_node buf = contains_val_it->second;
-                assert(buf.n_terms >= 1);
-                by_nterms.erase(by_nterms_it);
-                contains_val.erase(contains_val_it);
-                return buf;
-            }
-        };
+        if (min_nterms_cached.size() == 0) {
+            recache();
+        }
+        arith_t old_top_val = min_nterms_cached.top();
+        min_nterms_cached.pop();
+        contains_val_t::iterator it = contains_val.find(old_top_val);
+        assert(it != contains_val.end());
+        /* Copy */
+        expr_node old_top = it->second;
+        contains_val.erase(it);
+        return old_top;
     }
 };
 
@@ -151,7 +142,7 @@ static void discover(const expr_node& node) {
         return;
     }
     if (node.val == goal) {
-        std::cout << "One way = ";
+        std::cout << "One way =";
         print_rpn(node.val_left);
         print_rpn(node.val_right);
         std::cout << " +" << std::endl;
@@ -199,7 +190,7 @@ static void print_rpn(arith_t val) {
         print_rpn(node.val_right);
         /* Evil hack: '.op' is both an enum
          * *and* the representing character. */
-        std::cout << " " << node.op;
+        std::cout << " " << (char)node.op;
     }
 }
 
