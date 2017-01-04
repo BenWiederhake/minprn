@@ -113,6 +113,10 @@ public:
          * so we can just ignore it. */
     }
 
+    size_t level_size() const {
+        return min_nterms_cached.size();
+    }
+
     size_t size() const {
         return contains_val.size();
     }
@@ -131,6 +135,10 @@ public:
         /* Copy */
         into_node = it->second;
         contains_val.erase(it);
+    }
+
+    const expr_node& at(arith_t val) {
+        return contains_val.at(val);
     }
 };
 
@@ -165,15 +173,13 @@ static void discover(arith_t val, const expr_node& node) {
          * better expression. */
         return;
     }
+    list_open.push(val, node);
     if (val == goal) {
         goal_seen_n_terms = node.n_terms;
         std::cout << "One way (" << node.n_terms << " terms) = ";
-        print_rpn(node.val_left);
-        std::cout << static_cast<char>(node.op);
-        print_rpn(node.val_right);
+        print_rpn(goal);
         std::cout << std::endl;
     }
-    list_open.push(val, node);
 }
 
 static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, const expr_node& b) {
@@ -201,8 +207,16 @@ static void generate_against(arith_t a_val, const expr_node& a, arith_t b_val, c
     }
 }
 
+static const expr_node& lookup_best_known(arith_t val) {
+    list_closed_t::const_iterator it = list_closed.find(val);
+    if (it != list_closed.end()) {
+        return it->second;
+    }
+    return list_open.at(val);
+}
+
 static void print_rpn(arith_t val) {
-    const expr_node& node = list_closed.at(val);
+    const expr_node& node = lookup_best_known(val);
     if (node.op == OP_NONE) {
         std::cout << val;
     } else {
@@ -238,7 +252,8 @@ int main() {
         list_open.pop_into(val, node);
         if (++counter == next_print) {
             std::cout << "Expanding " << val << " at depth " << node.n_terms
-                      << ", " << list_open.size() << " open, "
+                      << ", " << list_open.size() << " open ("
+                      << list_open.level_size() << " on current level), "
                       << list_closed.size() << " closed." << std::endl;
             next_print = (next_print * 3) / 2;
         }
