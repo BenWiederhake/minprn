@@ -128,6 +128,9 @@ static void provide(arith_t d) {
     list_open.push(d, node);
 }
 
+/* Very rough upper bound */
+static size_t goal_seen_n_terms = goal + 10;
+
 static void print_rpn(arith_t val);
 static void discover(arith_t val, const expr_node& node) {
     /* Only add to open list if not already known in closed list.
@@ -139,7 +142,13 @@ static void discover(arith_t val, const expr_node& node) {
     if (abs_val >= max_relevant) {
         return;
     }
-    if (val == goal && node.n_terms < 14) {
+    if (node.n_terms >= goal_seen_n_terms) {
+        /* Don't care about a node if it can't possibly yield a
+         * better expression. */
+        return;
+    }
+    if (val == goal) {
+        goal_seen_n_terms = node.n_terms;
         std::cout << "One way (" << node.n_terms << " terms) = ";
         print_rpn(node.val_left);
         std::cout << static_cast<char>(node.op);
