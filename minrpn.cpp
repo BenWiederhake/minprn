@@ -62,7 +62,6 @@ class list_open_t {
 
     void step_recache() {
         min_nterms += 1;
-        std::cout << "Now looking at level " << min_nterms << std::endl;
         assert(min_nterms <= goal_seen_n_terms);
 
         /* Need to manually manage iterator,
@@ -83,6 +82,9 @@ class list_open_t {
                 backing.erase(old_it);
             }
         }
+        std::cout << "Now at level " << min_nterms << " (" << size()
+            << " open, " << level_size() << " of that on current level)"
+            << std::endl;
     }
 
     void recache() {
@@ -268,9 +270,11 @@ int main() {
         }
         /* Only loop as long as there's at least one more term that could be shaved off. */
     } while (goal_seen_n_terms > node.n_terms + 1);
-    std::cout << "Done!  Printing ..." << std::endl;
 
     /* Printing */
+    std::cout << "Done after " << list_closed.size()
+        << " steps.  Turns out, you need only " << goal_seen_n_terms
+        << " terms to build " << goal << ":" << std::endl;
     std::cout << goal << " = ";
     print_expr(goal);
     std::cout << std::endl;
