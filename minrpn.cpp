@@ -6,7 +6,7 @@
  * Compile:
  *   clang++ -std=c++11 -o minrpn minrpn.cpp
  * Compile with warnings:
- *   clang++ -std=c++11 -Weverything -Wno-padded -Wno-c++98-compat -Wno-global-constructors -Wno-exit-time-destructors -Wno-float-equal -Wno-c99-extensions -o minrpn minrpn.cpp
+ *   clang++ -std=c++11 -Weverything -Wno-padded -Wno-c++98-compat -Wno-global-constructors -Wno-exit-time-destructors -Wno-c99-extensions -o minrpn minrpn.cpp
  * Usage:
  *   ./minrpn 2017
  */
@@ -20,9 +20,8 @@
 #include <unordered_set>
 
 /* Some very light configuration / pruning */
-typedef double arith_t;
+typedef long arith_t;
 static const arith_t max_relevant = 10 * 1000 * 1000;
-static const arith_t min_relevant = 1e-7;
 
 enum arith_op : char {
     /* Enums which store the character used to represent them. */
@@ -145,8 +144,8 @@ static void discover(const expr_node& node) {
     if (list_closed.count(node.val) != 0) {
         return;
     }
-    arith_t abs_val = fabs(node.val);
-    if (abs_val <= min_relevant || abs_val >= max_relevant) {
+    arith_t abs_val = labs(node.val);
+    if (abs_val >= max_relevant) {
         return;
     }
     // PRINTME std::cout << "  Discovered " << node.val << " at depth " << node.n_terms << std::endl;
@@ -160,7 +159,9 @@ static void generate_against(const expr_node& a, const expr_node& b) {
 
     node.val_left = a.val;
     node.val_right = b.val;
+    if (b.val != 0 && a.val % b.val == 0) {
     node.val = a.val / b.val; node.op = OP_DIV;   discover(node);
+    }
     node.val = a.val - b.val; node.op = OP_MINUS; discover(node);
     node.val = a.val * b.val; node.op = OP_MULT;  discover(node);
     node.val = a.val + b.val; node.op = OP_PLUS;  discover(node);
@@ -169,7 +170,9 @@ static void generate_against(const expr_node& a, const expr_node& b) {
     if (b.val != a.val) {
         node.val_left = b.val;
         node.val_right = a.val;
+        if (a.val != 0 && b.val % a.val == 0) {
         node.val = b.val / a.val; node.op = OP_DIV;   discover(node);
+        }
         node.val = b.val - a.val; node.op = OP_MINUS; discover(node);
     }
 }
@@ -207,11 +210,8 @@ int main() {
          * "generated against" itself: */
         list_closed.emplace(node.val, node);
 
-        if (fabs(node.val - goal) <= 1e-5) {
-            /* Whee, we found it!
-             * First, a dirty hack to ensure bitwise identity: */
-            goal = node.val;
-            /* Then, we're done with the search. */
+        if (node.val == goal) {
+            /* Whee, we found it! */
             break;
         }
 
