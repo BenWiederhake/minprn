@@ -60,42 +60,47 @@ class list_open_t {
     typedef std::unordered_map<arith_t, expr_node> contains_val_t;
     contains_val_t contains_val;
 
+    void step_recache() {
+        min_nterms += 1;
+        std::cout << "Now looking at level " << min_nterms << std::endl;
+        assert(min_nterms <= goal_seen_n_terms);
+
+        /* Speed up the last round artificially. */
+        if (min_nterms == goal_seen_n_terms) {
+            /* We know that the goal is in there, and we know that the
+             * goal can't conceivably be reached any faster by now.
+             * So just pretend that the goal is the only available item. */
+            min_nterms_cached.push(goal);
+            /* Note that after popping the goal, this data structure
+             * is garbage! */
+            break;
+        }
+
+        /* Need to manually manage iterator,
+         * as the erasing would invalidate it. */
+        contains_val_t::iterator it = contains_val.begin();
+        while (it != contains_val.end()) {
+            /* Manage iterator */
+            contains_val_t::iterator old_it = it++;
+            const contains_val_t::value_type& entry = *old_it;
+
+            /* Actual logic */
+            assert(entry.second.n_terms >= min_nterms);
+            if (entry.second.n_terms == min_nterms) {
+                min_nterms_cached.push(entry.first);
+            } else if (entry.second.n_terms >= goal_seen_n_terms
+                    && entry.first != goal) {
+                /* This invalidates the reference! */
+                contains_val.erase(old_it);
+            }
+        }
+    }
+
     void recache() {
         assert(contains_val.size() > 0);
         assert(min_nterms_cached.size() == 0);
         do {
-            min_nterms += 1;
-            std::cout << "Now looking at level " << min_nterms << std::endl;
-            assert(min_nterms <= goal_seen_n_terms);
-
-            /* Speed up the last round artificially. */
-            if (min_nterms == goal_seen_n_terms) {
-                /* We know that the goal is in there, and we know that the
-                 * goal can't conceivably be reached any faster by now.
-                 * So just pretend that the goal is the only available item. */
-                min_nterms_cached.push(goal);
-                /* Note that after popping the goal, this data structure
-                 * is garbage! */
-                break;
-            }
-            
-            /* Need to manually manage iterator, as the erasure would invalidate it. */
-            contains_val_t::iterator it = contains_val.begin();
-            while (it != contains_val.end()) {
-                /* Manage iterator */
-                contains_val_t::iterator old_it = it++;
-                const contains_val_t::value_type& entry = *old_it;
-
-                /* Actual logic */
-                assert(entry.second.n_terms >= min_nterms);
-                if (entry.second.n_terms == min_nterms) {
-                    min_nterms_cached.push(entry.first);
-                } else if (entry.second.n_terms >= goal_seen_n_terms
-                        && entry.first != goal) {
-                    /* This invalidates the reference! */
-                    contains_val.erase(old_it);
-                }
-            }
+            step_recache();
         } while (min_nterms_cached.size() == 0);
     }
 
@@ -179,7 +184,6 @@ static void discover(arith_t val, const expr_node& node) {
         print_rpn(node.val_right);
         std::cout << std::endl;
     }
-    // PRINTME std::cout << "  Discovered " << val << " at depth " << node.n_terms << std::endl;
     list_open.push(val, node);
 }
 
@@ -238,8 +242,10 @@ int main() {
         expr_node node;
         list_open.pop_into(val, node);
         if (++counter == next_print) {
-            std::cout << "Expanding " << val << " at depth " << node.n_terms << ", " << list_open.size() << " open, " << list_closed.size() << " closed." << std::endl;
-            next_print *= 2;
+            std::cout << "Expanding " << val << " at depth " << node.n_terms
+                      << ", " << list_open.size() << " open, "
+                      << list_closed.size() << " closed." << std::endl;
+            next_print = (next_print * 3) / 2;
         }
 
         /* First add it to the closed list, so it can be
