@@ -8,7 +8,7 @@
  * Compile with warnings:
  *   clang++ -std=c++11 -Weverything -Wno-padded -Wno-c++98-compat -Wno-global-constructors -Wno-exit-time-destructors -Wno-c99-extensions -o minrpn minrpn.cpp
  * Usage:
- *   ./minrpn 2017
+ *   ./minrpn
  */
 
 #include <cassert>
