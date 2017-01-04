@@ -1,6 +1,6 @@
 # Minimal Expression Search
 Inspired by people being dumb
-![alt tag](imageForReadme/2017Lit.jpg)
+![alt tag](res/2017Lit.jpg)
 
 It's clear that this math is incorrect. [That
 guy](https://github.com/SandSnip3r/RandomPostfixEquation) was curious
